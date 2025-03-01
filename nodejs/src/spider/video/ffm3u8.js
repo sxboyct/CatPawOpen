@@ -273,7 +273,7 @@ async function test(inReq, outResp) {
     } catch (err) {
         console.error(err);
         outResp.code(500);
-        return { err: err.message, tip: 'check debug console output' };
+        return {err: err.message, tip: 'check debug console output'};
     }
 }
 

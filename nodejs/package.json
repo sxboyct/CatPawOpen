@@ -1,18 +1,27 @@
 {
     "name": "cat_vod_nodejs_fastify",
-    "version": "1.0.0",
-    "description": "CatVodOpen nodejs config api server demo.",
+    "version": "1.0.2",
     "type": "module",
+    "main": "src/dev.js",
     "scripts": {
-        "dev": "cross-env DEV_HTTP_PORT=3006 nodemon --config nodemon.json src/dev.js",
+        "dev": "cross-env DEV_HTTP_PORT=5758 nodemon --config nodemon.json src/dev.js",
         "_build": "rimraf dist && node esbuild.js && node esbuild-config.js",
-        "build": "cross-env NODE_ENV=production npm run _build",
+        "build": "cross-env NODE_ENV=production npm run _build && node copyDist.js D:\\soft\\猫影视\\Release\\data\\flutter_assets\\asset\\js",
+        "build:copy": "cross-env NODE_ENV=production npm run _build && node copyDist.js D:\\soft\\猫影视\\Release\\data\\flutter_assets\\asset\\js",
+        "build:dbg:copy": "cross-env NODE_ENV=development npm run _build && node copyDist.js D:\\soft\\猫影视\\Release\\data\\flutter_assets\\asset\\js",
         "build:dbg": "cross-env NODE_ENV=development npm run _build",
         "build:config": "cross-env NODE_ENV=production node esbuild-config.js",
         "build:rollup(obsolete)": "rimraf dist && cross-env NODE_ENV=production node rollup.js && cross-env NODE_ENV=production node rollup-config.js",
-        "build:rollup:config(obsolete)": "cross-env NODE_ENV=production node rollup-config.js"
+        "build:rollup:config(obsolete)": "cross-env NODE_ENV=production node rollup-config.js",
+        "build-old:dbg:copy": "rimraf dist && cross-env NODE_ENV=development node esbuild.js && cross-env NODE_ENV=development node esbuild-config.js && node copyDist.js D:\\soft\\猫影视\\Release\\data\\flutter_assets\\asset\\js"
     },
-    "author": "",
+    "engines": {
+        "node": ">17 <23"
+    },
+    "repository": "https://github.com/hjdhnx/CatPawOpen/tree/ds-cat",
+    "author": "道长",
+    "description": "道长修仙，法力无边。一统江湖，只需半年。\n君子袒蛋蛋，小人藏鸡鸡。",
+    "license": "MIT",
     "devDependencies": {
         "@babel/plugin-transform-runtime": "^7.23.9",
         "@babel/preset-env": "^7.23.9",
@@ -35,9 +44,13 @@
         "crypto-js": "^4.2.0",
         "dayjs": "^1.11.10",
         "fastify": "^4.26.0",
+        "fastq": "^1.18.0",
         "hls-parser": "^0.10.8",
         "iconv-lite": "^0.6.3",
+        "jsonpath-plus": "^10.2.0",
         "node-json-db": "^2.3.0",
-        "node-rsa": "^1.1.1"
+        "node-rsa": "^1.1.1",
+        "pako": "^2.1.0",
+        "qs": "^6.14.0"
     }
 }

@@ -1,9 +1,12 @@
 import req from '../../util/req.js';
+import CryptoJS from 'crypto-js';
+
+const suffix = '-https://github.com/alist-org/alist'
 
 const http = async function (url, options = {}) {
     if (options.method == 'POST' && options.data) {
         options.body = JSON.stringify(options.data);
-        options.headers = Object.assign({ 'content-type': 'application/json' }, options.headers);
+        options.headers = Object.assign({'content-type': 'application/json'}, options.headers);
     }
     const res = await req(url, options);
     res.json = () => (res.data ? res.data : null);
@@ -12,7 +15,7 @@ const http = async function (url, options = {}) {
 };
 ['get', 'post'].forEach((method) => {
     http[method] = function (url, options = {}) {
-        return http(url, Object.assign(options, { method: method.toUpperCase() }));
+        return http(url, Object.assign(options, {method: method.toUpperCase()}));
     };
 });
 
@@ -23,11 +26,11 @@ async function get_drives_path(tid) {
     const index = tid.indexOf('/', 1);
     const name = tid.substring(1, index);
     const path = tid.substring(index);
-    return { drives: await get_drives(name), path };
+    return {drives: await get_drives(name), path};
 }
 
 async function get_drives(name) {
-    const { settings, api, server } = __drives[name];
+    const {settings, api, server} = __drives[name];
     if (settings.v3 == null) {
         //获取 设置
         settings.v3 = false;
@@ -44,6 +47,7 @@ async function get_drives(name) {
             settings.enableSearch = false; //v3 没有找到 搜索配置
         }
         //不同版本 接口不一样
+        api.login = settings.v3 ? '/api/auth/login/hash' : '/api/auth/login/hash';
         api.path = settings.v3 ? '/api/fs/list' : '/api/public/path';
         api.file = settings.v3 ? '/api/fs/get' : '/api/public/path';
         api.search = settings.v3 ? '/api/public/search' : '/api/public/search';
@@ -60,24 +64,44 @@ async function init(inReq, _outResp) {
                 server: item.server.endsWith('/') ? item.server.substring(0, item.server.length - 1) : item.server,
                 startPage: item.startPage || '/', //首页
                 showAll: item.showAll === true, //默认只显示 视频和文件夹，如果想显示全部 showAll 设置true
+                sort: item.sort === true,
+                login: item.login || {},
                 params: item.params || {},
                 _path_param: item.params
                     ? Object.keys(item.params).sort(function (x, y) {
-                          return y.length - x.length;
-                      })
+                        return y.length - x.length;
+                    })
                     : [],
                 settings: {},
                 api: {},
+                getLogin() {
+                    return {
+                        username: this.login.username,
+                        password: CryptoJS.SHA256(this.login.password + suffix).toString(CryptoJS.enc.Hex),
+                        otp_code: this.login.otp_code
+                    };
+                },
                 getParams(path) {
                     const key = this._path_param.find((x) => path.startsWith(x));
-                    return Object.assign({}, this.params[key], { path });
+                    return Object.assign({}, this.params[key], {path});
+                },
+                async getHeaders() {
+                    return this.login.username && this.login.username.toLowerCase() !== 'guest'
+                        ? {Authorization: (await http.post(this.server + this.api.login, {data: this.getLogin()})).json().data.token}
+                        : {};
+                },
+                async getRes(api, path) {
+                    return (await http.post(this.server + api, {
+                        data: this.getParams(path),
+                        headers: Object.keys(this.login).length ? await this.getHeaders() : {}
+                    })).json();
                 },
                 async getPath(path) {
-                    const res = (await http.post(this.server + this.api.path, { data: this.getParams(path) })).json();
+                    const res = await this.getRes(this.api.path, path);
                     return this.settings.v3 ? res.data.content : res.data.files;
                 },
                 async getFile(path) {
-                    const res = (await http.post(this.server + this.api.file, { data: this.getParams(path) })).json();
+                    const res = await this.getRes(this.api.file, path);
                     const data = this.settings.v3 ? res.data : res.data.files[0];
                     if (!this.settings.v3) data.raw_url = data.url; //v2 的url和v3不一样
                     return data;
@@ -85,7 +109,7 @@ async function init(inReq, _outResp) {
                 async getOther(method, path) {
                     const data = this.getParams(path);
                     data.method = method;
-                    const res = (await http.post(this.server + this.api.other, { data: data })).json();
+                    const res = await this.getRes(this.api.other, path);
                     return res;
                 },
                 isFolder(data) {
@@ -154,7 +178,7 @@ async function dir(inReq, _outResp) {
     if (dir === '/' || dir === '') {
         const result = Object.keys(__drives).map(function (n) {
             const d = __drives[n];
-            return { name: d.name, path: '/' + d.name + d.startPage, type: 0, thumb: '' };
+            return {name: d.name, path: '/' + d.name + d.startPage, type: 0, thumb: ''};
         });
         return {
             parent: '',
@@ -163,13 +187,24 @@ async function dir(inReq, _outResp) {
             list: result,
         };
     }
-
-    let { drives, path } = await get_drives_path(dir);
+    let {drives, path} = await get_drives_path(dir);
     const id = dir.endsWith('/') ? dir : dir + '/';
     const list = await drives.getPath(path);
     let subtList = [];
     let videos = [];
     let allList = [];
+    if (drives.sort) {
+        list.sort((a, b) => {
+            const numA = parseInt(a.name.match(/^\d+/) || 0);
+            const numB = parseInt(b.name.match(/^\d+/) || 0);
+            if (numA && numB) {
+                return numA - numB;
+            }
+            if (numA) return -1;
+            if (numB) return 1;
+            return a.name.toLowerCase().localeCompare(b.name.toLowerCase());
+        });
+    }
     list.forEach((item) => {
         if (drives.isSubtitle(item)) subtList.push(item.name);
         const isVideo = drives.isVideo(item);
@@ -201,7 +236,7 @@ async function dir(inReq, _outResp) {
 
 async function file(inReq, _outResp) {
     const file = inReq.body.path;
-    let { drives, path } = await get_drives_path(file);
+    let {drives, path} = await get_drives_path(file);
     const item = await drives.getFile(path);
     const subs = [];
     if (__subtitle_cache[file]) {
@@ -210,7 +245,8 @@ async function file(inReq, _outResp) {
                 let subP = await get_drives_path(sub);
                 const subItem = await drives.getFile(subP.path);
                 subs.push(subItem.raw_url);
-            } catch (error) {}
+            } catch (error) {
+            }
         }
     }
     if ((item.provider === 'AliyundriveShare2Open' || item.provider == 'AliyundriveOpen') && drives.api.other) {
@@ -223,7 +259,8 @@ async function file(inReq, _outResp) {
                     urls.push(live.url);
                 }
             }
-        } catch (error) {}
+        } catch (error) {
+        }
         const result = {
             name: item.name,
             url: urls,
@@ -239,7 +276,8 @@ async function file(inReq, _outResp) {
         let url = item.raw_url;
         try {
             url = (await http.get(url)).json().data.redirect_url;
-        } catch (error) {}
+        } catch (error) {
+        }
         const result = {
             name: item.name,
             url: url,
@@ -285,7 +323,7 @@ async function test(inReq, outResp) {
         dataResult.dir = resp.json();
         printErr(resp.json());
         resp = await inReq.server.inject().post(`${prefix}/file`).payload({
-            path: '/🐉神族九帝/天翼云盘/音乐/周杰伦 - 七里香.flac',
+            path: '/短剧/迟到的正义（39集）/23.mp4',
         });
         dataResult.file = resp.json();
         printErr(resp.json());
@@ -293,7 +331,7 @@ async function test(inReq, outResp) {
     } catch (err) {
         console.error(err);
         outResp.code(500);
-        return { err: err.message, tip: 'check debug console output' };
+        return {err: err.message, tip: 'check debug console output'};
     }
 }
 
