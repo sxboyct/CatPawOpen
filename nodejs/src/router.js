@@ -1,4 +1,5 @@
 import * as cfg from './index.config.js';
+import douban from './spider/video/douban.js';
 import push from './spider/video/push.js';
 import alist from './spider/pan/alist.js';
 import _13bqg from './spider/book/13bqg.js';
@@ -10,7 +11,7 @@ import {extractTags} from "./util/tool.js";
 import {md5} from "./util/crypto-util.js";
 import chunkStream from "./util/chunk.js";
 
-const spiders = [ffm3u8, push, alist, _13bqg, copymanga, drpyS];
+const spiders = [douban, ffm3u8, push, alist, _13bqg, copymanga, drpyS];
 const spiderPrefix = '/spider';
 let dsSites = [];
 let dsParses = [];
